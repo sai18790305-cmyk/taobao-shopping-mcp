@@ -1,8 +1,22 @@
 import { chromium, type BrowserContext, type Page } from "playwright";
-import type { ProductDetail, ProductSummary, SelectedSku, SessionStatus } from "./types.js";
+import type { AddToCartResult, ProductDetail, ProductSummary, SelectedSku, SessionStatus } from "./types.js";
 
 const TAOBAO_HOME = "https://www.taobao.com/";
 const SEARCH_URL = "https://s.taobao.com/search?q=";
+const ALLOWED_HOSTS = new Set(["taobao.com", "tmall.com"]);
+
+export function isTaobaoFamilyUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return [...ALLOWED_HOSTS].some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+export function assertTaobaoFamilyUrl(value: string): void {
+  if (!isTaobaoFamilyUrl(value)) throw new Error(`Navigation blocked: only Taobao-family domains are allowed (${value})`);
+}
 
 export class TaobaoBrowser {
   private context?: BrowserContext;
@@ -67,6 +81,7 @@ export class TaobaoBrowser {
   }
 
   async readProduct(url: string): Promise<ProductDetail> {
+    assertTaobaoFamilyUrl(url);
     await this.connect();
     await this.currentPage.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     await this.currentPage.waitForTimeout(900);
@@ -78,6 +93,7 @@ export class TaobaoBrowser {
   }
 
   async selectSku(url: string, selections: SelectedSku[]): Promise<{ selected: SelectedSku[]; ready: boolean }> {
+    assertTaobaoFamilyUrl(url);
     await this.connect();
     if (this.currentPage.url() !== url) await this.currentPage.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     for (const selection of selections) {
@@ -88,13 +104,16 @@ export class TaobaoBrowser {
     return { selected: selections, ready: true };
   }
 
-  async addToCart(url: string, selections: SelectedSku[]): Promise<{ added: boolean; url: string }> {
+  async addToCart(url: string, selections: SelectedSku[]): Promise<AddToCartResult> {
+    assertTaobaoFamilyUrl(url);
     await this.selectSku(url, selections);
     const button = this.currentPage.getByText(/加入购物车|加购/, { exact: false }).first();
     if (!(await button.count())) throw new Error("Add-to-cart control not found");
     await button.click();
     await this.currentPage.waitForTimeout(600);
-    return { added: true, url: this.currentPage.url() };
+    const pageText = await this.currentPage.locator("body").innerText().catch(() => "");
+    const verified = /加入购物车成功|已加入购物车|添加成功/.test(pageText);
+    return { executed: true, added: verified, verified, verification: verified ? "success_signal_detected" : "no_success_signal", url: this.currentPage.url() };
   }
 }
 
