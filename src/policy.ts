@@ -3,6 +3,7 @@ export const ALLOWED_ACTIONS = [
   "search_products",
   "read_product",
   "select_sku",
+  "confirm_add_to_cart",
   "add_to_cart",
 ] as const;
 
