@@ -1,4 +1,4 @@
-export type SessionStatus = {
+src/types.tsexport type SessionStatus = {
   loggedIn: boolean;
   accountLabel?: string;
   url: string;
