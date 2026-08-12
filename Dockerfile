@@ -1,4 +1,14 @@
-FROM mcr.microsoft.com/playwright:v1.55.0-noble
+FROM mcr.microsoft.com/playwright:v1.55.0-noble AS build
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
+
+FROM mcr.microsoft.com/playwright:v1.55.0-noble AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -7,11 +17,7 @@ ENV NODE_ENV=production \
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-
-COPY tsconfig.json README.md ./
-COPY src ./src
-RUN npm run build
-
+COPY --from=build /app/dist ./dist
 RUN mkdir -p /data/taobao-profile
 EXPOSE 3000
 CMD ["node", "dist/server.js"]
