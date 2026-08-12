@@ -32,12 +32,12 @@ function createMcpServer(): McpServer {
     assertAllowedAction("read_product");
     return { content: [{ type: "text", text: JSON.stringify(await browser.readProduct(productUrl)) }] };
   });
-  server.registerTool("taobao_select_sku", { description: "Select visible product specifications without ordering.", annotations: readOnlyAnnotations, inputSchema: { url, selections } }, async ({ url: productUrl, selections: chosen }) => {
+  server.registerTool("taobao_select_sku", { description: "Select visible product specifications without ordering.", annotations: externalWriteAnnotations, inputSchema: { url, selections } }, async ({ url: productUrl, selections: chosen }) => {
     assertAllowedAction("select_sku");
     return { content: [{ type: "text", text: JSON.stringify(await browser.selectSku(productUrl, chosen)) }] };
   });
   if (!probeOnly) {
-    server.registerTool("taobao_confirm_add_to_cart", { description: "Prepare a one-time confirmation token for adding a specific SKU selection to cart. No cart action occurs.", annotations: readOnlyAnnotations, inputSchema: { url, selections } }, async ({ url: productUrl, selections: chosen }) => {
+    server.registerTool("taobao_confirm_add_to_cart", { description: "Prepare a one-time confirmation token for adding a specific SKU selection to cart. No cart action occurs.", annotations: externalWriteAnnotations, inputSchema: { url, selections } }, async ({ url: productUrl, selections: chosen }) => {
       assertAllowedAction("confirm_add_to_cart");
       assertTaobaoFamilyUrl(productUrl);
       return { content: [{ type: "text", text: JSON.stringify(confirmations.issue(productUrl, chosen)) }] };
