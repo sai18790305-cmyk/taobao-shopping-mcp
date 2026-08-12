@@ -14,35 +14,40 @@ const browser = new TaobaoBrowser();
 const confirmations = new AddToCartConfirmationStore();
 const url = z.string().url();
 const selections = z.array(z.object({ name: z.string().min(1), value: z.string().min(1) }));
+const readOnlyAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } as const;
+const externalWriteAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } as const;
+const probeOnly = process.env.PROBE_ONLY === "true";
 
 function createMcpServer(): McpServer {
   const server = new McpServer({ name: "taobao-shopping-mcp", version: "0.2.0" });
-  server.registerTool("taobao_session_status", { description: "Check the current Taobao browser session. Read-only.", inputSchema: {} }, async () => {
+  server.registerTool("taobao_session_status", { description: "Check the current Taobao browser session. Read-only.", annotations: readOnlyAnnotations, inputSchema: {} }, async () => {
     assertAllowedAction("session_status");
     return { content: [{ type: "text", text: JSON.stringify(await browser.sessionStatus()) }] };
   });
-  server.registerTool("taobao_search_products", { description: "Search Taobao products without purchasing.", inputSchema: { query: z.string().min(1), limit: z.number().int().min(1).max(30).optional() } }, async ({ query, limit }) => {
+  server.registerTool("taobao_search_products", { description: "Search Taobao products without purchasing.", annotations: readOnlyAnnotations, inputSchema: { query: z.string().min(1), limit: z.number().int().min(1).max(30).optional() } }, async ({ query, limit }) => {
     assertAllowedAction("search_products");
     return { content: [{ type: "text", text: JSON.stringify(await browser.searchProducts(query, limit)) }] };
   });
-  server.registerTool("taobao_read_product", { description: "Read a Taobao-family product page, images, and visible SKU information.", inputSchema: { url } }, async ({ url: productUrl }) => {
+  server.registerTool("taobao_read_product", { description: "Read a Taobao-family product page, images, and visible SKU information.", annotations: readOnlyAnnotations, inputSchema: { url } }, async ({ url: productUrl }) => {
     assertAllowedAction("read_product");
     return { content: [{ type: "text", text: JSON.stringify(await browser.readProduct(productUrl)) }] };
   });
-  server.registerTool("taobao_select_sku", { description: "Select visible product specifications without ordering.", inputSchema: { url, selections } }, async ({ url: productUrl, selections: chosen }) => {
+  server.registerTool("taobao_select_sku", { description: "Select visible product specifications without ordering.", annotations: readOnlyAnnotations, inputSchema: { url, selections } }, async ({ url: productUrl, selections: chosen }) => {
     assertAllowedAction("select_sku");
     return { content: [{ type: "text", text: JSON.stringify(await browser.selectSku(productUrl, chosen)) }] };
   });
-  server.registerTool("taobao_confirm_add_to_cart", { description: "Prepare a one-time confirmation token for adding a specific SKU selection to cart. No cart action occurs.", inputSchema: { url, selections } }, async ({ url: productUrl, selections: chosen }) => {
-    assertAllowedAction("confirm_add_to_cart");
-    assertTaobaoFamilyUrl(productUrl);
-    return { content: [{ type: "text", text: JSON.stringify(confirmations.issue(productUrl, chosen)) }] };
-  });
-  server.registerTool("taobao_add_to_cart", { description: "Add a specifically confirmed SKU selection to Taobao cart, then verify the page success signal. Checkout, payment, ordering, and address changes are unavailable.", inputSchema: { url, selections, confirmationToken: z.string().min(1) } }, async ({ url: productUrl, selections: chosen, confirmationToken }) => {
-    assertAllowedAction("add_to_cart");
-    if (!confirmations.consume(confirmationToken, productUrl, chosen)) throw new Error("A valid, matching, unexpired one-time confirmation token is required before adding to cart.");
-    return { content: [{ type: "text", text: JSON.stringify(await browser.addToCart(productUrl, chosen)) }] };
-  });
+  if (!probeOnly) {
+    server.registerTool("taobao_confirm_add_to_cart", { description: "Prepare a one-time confirmation token for adding a specific SKU selection to cart. No cart action occurs.", annotations: readOnlyAnnotations, inputSchema: { url, selections } }, async ({ url: productUrl, selections: chosen }) => {
+      assertAllowedAction("confirm_add_to_cart");
+      assertTaobaoFamilyUrl(productUrl);
+      return { content: [{ type: "text", text: JSON.stringify(confirmations.issue(productUrl, chosen)) }] };
+    });
+    server.registerTool("taobao_add_to_cart", { description: "Add a specifically confirmed SKU selection to Taobao cart, then verify the page success signal. Checkout, payment, ordering, and address changes are unavailable.", annotations: externalWriteAnnotations, inputSchema: { url, selections, confirmationToken: z.string().min(1) } }, async ({ url: productUrl, selections: chosen, confirmationToken }) => {
+      assertAllowedAction("add_to_cart");
+      if (!confirmations.consume(confirmationToken, productUrl, chosen)) throw new Error("A valid, matching, unexpired one-time confirmation token is required before adding to cart.");
+      return { content: [{ type: "text", text: JSON.stringify(await browser.addToCart(productUrl, chosen)) }] };
+    });
+  }
   return server;
 }
 
