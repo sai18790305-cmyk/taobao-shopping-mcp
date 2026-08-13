@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Server as HttpServer } from "node:http";
 import type { Request, Response } from "express";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -6,6 +7,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { AddToCartConfirmationStore } from "./confirmation.js";
+import { DEFAULT_LOCAL_PORT, LOCAL_MCP_HOST } from "./local-config.js";
 import { assertTaobaoFamilyUrl, TaobaoBrowser } from "./taobao-browser.js";
 import { assertAllowedAction } from "./policy.js";
 import type { SelectedSku } from "./types.js";
@@ -19,7 +21,7 @@ const externalWriteAnnotations = { readOnlyHint: false, destructiveHint: false, 
 const probeOnly = process.env.PROBE_ONLY === "true";
 
 function createMcpServer(): McpServer {
-  const server = new McpServer({ name: "taobao-shopping-mcp", version: "0.2.0" });
+  const server = new McpServer({ name: "taobao-shopping-mcp", version: "0.3.0" });
   server.registerTool("taobao_session_status", { description: "Check the current Taobao browser session. Read-only.", annotations: readOnlyAnnotations, inputSchema: {} }, async () => {
     assertAllowedAction("session_status");
     return { content: [{ type: "text", text: JSON.stringify(await browser.sessionStatus()) }] };
@@ -56,11 +58,9 @@ async function startStdio(): Promise<void> {
   await server.connect(new StdioServerTransport());
 }
 
-async function startHttp(): Promise<void> {
-  const port = Number(process.env.PORT ?? 3000);
-  const host = process.env.HOST ?? "0.0.0.0";
-  const configuredHosts = process.env.ALLOWED_HOSTS?.split(",").map((item) => item.trim()).filter(Boolean);
-  const app = createMcpExpressApp({ host, ...(configuredHosts?.length ? { allowedHosts: configuredHosts } : {}) });
+async function startHttp(): Promise<HttpServer> {
+  const port = Number(process.env.PORT ?? DEFAULT_LOCAL_PORT);
+  const app = createMcpExpressApp({ host: LOCAL_MCP_HOST, allowedHosts: [LOCAL_MCP_HOST, "localhost"] });
   const transports = new Map<string, StreamableHTTPServerTransport>();
   app.get("/health", (_req: Request, res: Response) => res.status(200).json({ ok: true, service: "taobao-shopping-mcp", transport: "stdio+streamable-http" }));
   app.all("/mcp", async (req: Request, res: Response) => {
@@ -78,7 +78,29 @@ async function startHttp(): Promise<void> {
     }
     await transport.handleRequest(req, res, req.body);
   });
-  app.listen(port, host, () => console.error(`Taobao shopping MCP HTTP listening on ${host}:${port}`));
+  return await new Promise<HttpServer>((resolve, reject) => {
+    const httpServer = app.listen(port, LOCAL_MCP_HOST);
+    httpServer.once("error", reject);
+    httpServer.once("listening", () => {
+      console.error(`Taobao shopping MCP HTTP listening on ${LOCAL_MCP_HOST}:${port}`);
+      resolve(httpServer);
+    });
+  });
 }
 
-await Promise.all([startStdio(), startHttp()]);
+let httpServer: HttpServer | undefined;
+let shuttingDown = false;
+
+async function shutdown(exitCode: number): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  await browser.close().catch(() => undefined);
+  if (httpServer) await new Promise<void>((resolve) => httpServer!.close(() => resolve()));
+  process.exit(exitCode);
+}
+
+process.once("SIGINT", () => { void shutdown(0); });
+process.once("SIGTERM", () => { void shutdown(0); });
+
+await startStdio();
+httpServer = await startHttp();
