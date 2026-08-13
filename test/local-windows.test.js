@@ -50,6 +50,7 @@ test("PowerShell scripts start local MCP and tunnel without persisting secrets",
   assert.match(start, /Get-RequiredEnvironment "OPENAI_MCP_TUNNEL_ID"/);
   assert.match(start, /npmCommand\.Source ci/);
   assert.match(start, /http:\/\/127\.0\.0\.1:\$Port\/mcp/);
+  assert.match(start, /"init", "--sample", "sample_mcp_stdio_local"/);
   assert.match(start, /"--mcp-server-url", \$mcpUrl/);
   assert.match(start, /Start-Process[^\n]+dist\/server\.js/);
   assert.doesNotMatch(start, /Set-Content[^\n]+(?:apiKey|tunnelId)/i);
