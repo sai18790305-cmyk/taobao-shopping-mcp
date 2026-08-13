@@ -13,6 +13,7 @@ FROM mcr.microsoft.com/playwright:v1.55.0-noble AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
+    TAOBAO_BROWSER_IDLE_MS=300000 \
     TAOBAO_PROFILE_DIR=/data/taobao-profile
 
 COPY package.json package-lock.json ./

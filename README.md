@@ -13,7 +13,7 @@ npm run build
 npm run probe -- "2mm 深绿色米珠"
 ```
 
-浏览器使用持久化目录 `TAOBAO_PROFILE_DIR`，默认 `.taobao-profile`；`HEADLESS=false` 可显示浏览器窗口。不要把该目录或登录凭据提交到仓库。
+浏览器按工具调用懒启动，并只保留一个页面。使用持久化目录 `TAOBAO_PROFILE_DIR`，默认 `.taobao-profile`；`HEADLESS=false` 可显示浏览器窗口。`TAOBAO_BROWSER_IDLE_MS` 控制闲置自动关闭，默认 `300000`（5 分钟），设为 `0` 可禁用。不要把该目录或登录凭据提交到仓库。
 
 ## 服务入口
 
