@@ -12,20 +12,12 @@ test("server annotates tools and hides cart writes in probe-only mode", async ()
   assert.match(source, /process\.env\.PROBE_ONLY === "true"/);
 });
 
-test("container pins Playwright and persists the Taobao profile directory", async () => {
-  const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
-  assert.match(dockerfile, /playwright:v1\.55\.0-noble/);
-  assert.match(dockerfile, /AS build/);
-  assert.match(dockerfile, /FROM mcr\.microsoft\.com\/playwright:v1\.55\.0-noble AS runtime/);
-  assert.match(dockerfile, /RUN npm ci\n/);
-  assert.match(dockerfile, /RUN npm ci --omit=dev/);
-  assert.match(dockerfile, /COPY --from=build \/app\/dist \.\/dist/);
-  assert.match(dockerfile, /TAOBAO_BROWSER_IDLE_MS=300000/);
-  assert.match(dockerfile, /TAOBAO_PROFILE_DIR=\/data\/taobao-profile/);
-});
-
-test("dockerignore excludes build artifacts, browser profile, git, and logs", async () => {
-  const dockerignore = await readFile(new URL("../.dockerignore", import.meta.url), "utf8");
-  for (const entry of ["node_modules", "dist", ".taobao-profile", ".git"]) assert.ok(dockerignore.split("\n").includes(entry), `missing ${entry}`);
-  assert.match(dockerignore, /^\*\.log$/m);
+test("HTTP MCP is loopback-only and closes browser resources on exit", async () => {
+  const source = await readFile(new URL("../src/server.ts", import.meta.url), "utf8");
+  assert.match(source, /host: LOCAL_MCP_HOST/);
+  assert.match(source, /allowedHosts: \[LOCAL_MCP_HOST, "localhost"\]/);
+  assert.doesNotMatch(source, /process\.env\.HOST/);
+  assert.match(source, /process\.once\("SIGINT"/);
+  assert.match(source, /process\.once\("SIGTERM"/);
+  assert.match(source, /await browser\.close\(\)/);
 });

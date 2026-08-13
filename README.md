@@ -1,29 +1,42 @@
 # taobao-shopping-mcp
 
-淘宝购物 MCP。当前只开放：登录会话检查、商品搜索、商品详情/图片/SKU 读取、选择规格、一次性确认后加入购物车。
+淘宝购物 MCP 的 Windows 本地按需版。只开放登录会话检查、商品搜索、商品详情/图片/SKU 读取、选择规格，以及一次性确认后的加入购物车。
 
-明确不存在：付款、下单、结算、改地址、删除购物车商品。
+明确禁止付款、下单、结算、改地址和删除购物车商品。服务只监听 `127.0.0.1`，不需要也不应部署到 Zeabur。
 
-## 本地运行
+## Windows 准备
 
-```bash
-npm install
-npx playwright install chromium
-npm run build
-npm run probe -- "2mm 深绿色米珠"
+需要 Node.js 20+、已安装的 Google Chrome，以及 OpenAI 官方 `tunnel-client`。从 [Platform tunnel settings](https://platform.openai.com/settings/organization/tunnels) 创建 Tunnel 并下载客户端；Secure MCP Tunnel 的官方说明见 [OpenAI Docs](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
+
+在启动它的 PowerShell 会话中设置两个环境变量：
+
+```powershell
+$env:CONTROL_PLANE_API_KEY = "你的 runtime API key"
+$env:OPENAI_MCP_TUNNEL_ID = "tunnel_..."
 ```
 
-浏览器按工具调用懒启动，并只保留一个页面。使用持久化目录 `TAOBAO_PROFILE_DIR`，默认 `.taobao-profile`；`HEADLESS=false` 可显示浏览器窗口。`TAOBAO_BROWSER_IDLE_MS` 控制闲置自动关闭，默认 `300000`（5 分钟），设为 `0` 可禁用。不要把该目录或登录凭据提交到仓库。
+密钥和 Tunnel ID 只从环境变量读取，不要写进 `.env`、脚本、仓库或日志。若 `tunnel-client.exe` 不在 `PATH`，可设置 `TAOBAO_TUNNEL_CLIENT_PATH`；Chrome 不在标准位置时可设置 `TAOBAO_CHROME_PATH`。
 
-## 服务入口
+## 一键启动与停止
 
-服务同时保留 stdio，并在 `PORT`（默认 `3000`）提供 Streamable HTTP：
+```powershell
+.\scripts\start-local.ps1
+.\scripts\stop-local.ps1
+```
 
-- `GET /health`：健康检查
-- `POST/GET/DELETE /mcp`：MCP Streamable HTTP
+启动脚本会执行 `npm ci` 和构建，检测 Chrome，启动本地 MCP，再初始化并运行 Secure MCP Tunnel。MCP 地址固定为 `http://127.0.0.1:3000/mcp`；可用 `-Port` 改端口。
 
-加购必须先调用 `taobao_confirm_add_to_cart` 获取一次性令牌，再把令牌传给 `taobao_add_to_cart`；执行后只在页面出现成功信号时报告已验证加购。导航只允许淘宝系域名（`taobao.com`、`tmall.com` 及其子域名）。
+浏览器在第一次调用淘宝工具时才启动，默认显示窗口并只保留一个页面。专用登录目录默认为 `%LOCALAPPDATA%\taobao-shopping-mcp\taobao-profile`，登录一次后可持续复用；不要改成日常 Chrome 的用户目录。`TAOBAO_BROWSER_IDLE_MS` 默认 `300000`，闲置五分钟自动关闭浏览器，设为 `0` 可禁用。
 
-## 探针状态
+停止脚本会终止 Tunnel、本地 MCP 和其管理的 Chrome 进程树，并删除不含密钥的 PID 状态文件。
 
-本施工窗的 Cloud Browser 对淘宝站点被环境安全策略拦截，本地 Chromium 运行时也未安装，因此尚未得到真实淘宝页面数据。`probe` 会在目标浏览器不可达或未登录时输出结构化阻断结果，不会尝试绕过拦截。
+## 连接 ChatGPT
+
+保持启动脚本创建的后台进程运行。在 ChatGPT 开发者模式中新建应用，Connection 选择 **Tunnel**，再选择或填写同一个 `tunnel_id`。Secure MCP Tunnel 只建立从本机到 OpenAI 的出站 HTTPS 连接，不会把本地 MCP 暴露到公网。
+
+## 本地接口
+
+- `GET http://127.0.0.1:3000/health`
+- `POST/GET/DELETE http://127.0.0.1:3000/mcp`
+
+加购仍必须先调用 `taobao_confirm_add_to_cart` 获取匹配 SKU 的一次性令牌；令牌使用后失效，并且执行后必须检测页面成功信号。导航仍仅允许淘宝系域名。

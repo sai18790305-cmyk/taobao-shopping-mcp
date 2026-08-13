@@ -1,4 +1,5 @@
 import { chromium, type BrowserContext, type Page } from "playwright";
+import { resolveChromeExecutable, resolveProfileDirectory } from "./local-config.js";
 import type { AddToCartResult, ProductDetail, ProductSummary, SelectedSku, SessionStatus } from "./types.js";
 
 const TAOBAO_HOME = "https://www.taobao.com/";
@@ -88,9 +89,10 @@ export class TaobaoBrowser {
   }
 
   private async launch(): Promise<void> {
-    const profile = process.env.TAOBAO_PROFILE_DIR ?? ".taobao-profile";
+    const profile = resolveProfileDirectory();
     this.context = await chromium.launchPersistentContext(profile, {
-      headless: process.env.HEADLESS !== "false",
+      executablePath: resolveChromeExecutable(),
+      headless: process.env.HEADLESS === "true",
       viewport: { width: 1440, height: 1000 },
       args: [
         "--disable-background-networking",
