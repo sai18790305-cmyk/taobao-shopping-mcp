@@ -20,6 +20,7 @@ test("container pins Playwright and persists the Taobao profile directory", asyn
   assert.match(dockerfile, /RUN npm ci\n/);
   assert.match(dockerfile, /RUN npm ci --omit=dev/);
   assert.match(dockerfile, /COPY --from=build \/app\/dist \.\/dist/);
+  assert.match(dockerfile, /TAOBAO_BROWSER_IDLE_MS=300000/);
   assert.match(dockerfile, /TAOBAO_PROFILE_DIR=\/data\/taobao-profile/);
 });
 
