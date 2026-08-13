@@ -93,7 +93,7 @@ try {
   if (-not $healthy) { throw "Local MCP health check timed out" }
 
   if (-not (Test-Path -LiteralPath $profileMarker)) {
-    $initArguments = @("init", "--profile", $tunnelProfile, "--tunnel-id", $tunnelId, "--mcp-server-url", $mcpUrl)
+    $initArguments = @("init", "--sample", "sample_mcp_stdio_local", "--profile", $tunnelProfile, "--tunnel-id", $tunnelId, "--mcp-server-url", $mcpUrl)
     & $tunnelExecutable @initArguments *> $null
     if ($LASTEXITCODE -ne 0) { throw "tunnel-client init failed" }
     New-Item -ItemType File -Force -Path $profileMarker | Out-Null
